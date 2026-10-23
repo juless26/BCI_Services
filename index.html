@@ -237,8 +237,15 @@ const RX_TIMES = [
   {t:'Saturday', d:'Delivery, 9 to 11 AM · Sam is home', sum:'Saturday, 9 to 11 AM'}
 ];
 const RX = [{t:'Lisinopril', d:'10 mg · due Monday'},{t:'Metformin', d:'500 mg · due in 2 weeks'}];
+const SOURCES = {
+  groceries:{t:'Groceries', opts:[{t:'Amazon Fresh', d:'Delivery from Amazon'},{t:'Instacart', d:'Stores near you'}]},
+  travel:{t:'Travel', opts:[{t:'Southwest', d:'Your usual airline'},{t:'Google Flights', d:'Compares all airlines'}]},
+  homehelp:{t:'Home help', opts:[{t:'Yelp', d:'Reviews and ratings'},{t:'Nextdoor', d:'Picks from your neighbors'}]},
+  pharmacy:{t:'Pharmacy', opts:[{t:'Your usual pharmacy', d:'Insurance on file'},{t:'Amazon Pharmacy', d:'Mail delivery'}]}
+};
+const DEFAULT_SRC = {groceries:['Amazon Fresh'], travel:['Southwest'], homehelp:['Yelp'], pharmacy:['Your usual pharmacy']};
 const DEFAULT_SPOTS = ['groceries','travel','homehelp','something'];
-const state = {screen:'home', mode:'eyes', spots:[...DEFAULT_SPOTS], orig:null, draft:null, flight:0, slot:0, rx:0, rxTime:0, tok:0};
+const state = {screen:'home', mode:'eyes', spots:[...DEFAULT_SPOTS], orig:null, draft:null, flight:0, slot:0, rx:0, rxTime:0, src:JSON.parse(JSON.stringify(DEFAULT_SRC)), srcSnap:null, srcTask:'homehelp', srcBack:'settings', tok:0};
 
 /* ---------- building blocks ---------- */
 const px = (x,y,w,h) => `left:${x}px;top:${y}px;${w?`width:${w}px;`:''}${h?`height:${h}px;`:''}`;
@@ -262,7 +269,7 @@ function tile(o){
 const row3 = (y,h,items,common={}) => items.map((it,i)=>tile({x:40+i*421,y,w:357,h,...common,...it})).join('');
 const pill = (x,y,w,label,act) => `<div class="t pill glass" data-act="${act}" style="${px(x,y,w)}"><i class="fill"></i><span>${label}</span></div>`;
 const pillR = (w,label,act) => `<div class="t pill glass" data-act="${act}" style="width:${w}px"><i class="fill"></i><span>${label}</span></div>`;
-const assume = (text) => `<div class="assume"><p>${text}</p>${pillR(220,'Change these','nb')}</div>`;
+const assume = (text, act='nb') => `<div class="assume"><p>${text}</p>${pillR(220,'Change these',act)}</div>`;
 const abs = (x,y,cls,text) => `<p class="abs ${cls}" style="${px(x,y)}">${text}</p>`;
 const ctr = (y,cls,text) => `<p class="abs ctr ${cls}" style="top:${y}px">${text}</p>`;
 
@@ -344,7 +351,7 @@ const SCREENS = {
           {t:'Regular clean', d:'Every two weeks', best:true, act:'go:approve'},
           {t:'Deep clean', d:'One time', act:'nb'},
           {t:'Something else', d:'Say it in your own words', act:'nb'}])
-      + pill(40,672,220,'Back','go:home') + assume('5 stars on Yelp · near home · starts next week');
+      + pill(40,672,220,'Back','go:home') + assume('5 stars on Yelp · near home · starts next week','srcOpen:cleaning');
   },
   approve(){
     return BACKDROP + topBar('Waiting for you · nothing sent yet') + abs(40,140,'h48','Send this to 3 cleaners?')
@@ -450,7 +457,18 @@ const SCREENS = {
       + spotHtml + abs(720,255,'sub20','Put in spot 3:')
       + choice(299,d,true,'noop') + choice(443,other,false,`pick:${other}`)
       + `<div class="t choice dash" data-act="nb" style="${px(720,587,520,80)}"><i class="fill"></i><div class="tx"><b>More choices</b></div></div>`
-      + pill(40,672,260,'Undo changes','undo');
+      + pill(40,672,260,'Undo changes','undo') + pill(364,672,260,'Where I look','srcOpen:settings');
+  },
+  sources(){
+    const keys = ['groceries','travel','homehelp','pharmacy'], pos = [[40,255],[364,255],[40,459],[364,459]];
+    const spots = keys.map((k,i)=>`<div class="t spot ${k===state.srcTask?'on':'glass'}" data-act="srcTask:${k}" style="${px(pos[i][0],pos[i][1],260,140)}"><b>${SOURCES[k].t}</b><span>${state.src[k].join(' · ')}</span></div>`).join('');
+    const opts = SOURCES[state.srcTask].opts.map((o,i)=>{const on = state.src[state.srcTask].includes(o.t);
+      return `<div class="t choice ${on?'on':'glass'}" data-act="tog:${i}" style="${px(720,299+i*144,520,80)}"><i class="fill"></i><div class="tx"><b>${o.t}</b><span>${o.d}</span></div>${on?'<span class="mk">In use</span>':''}</div>`;}).join('');
+    return BACKDROP + topBar('Settings',{stop:false, done:true}).replace('data-act="done"','data-act="srcDone"')
+      + abs(40,116,'h44','Choose where I look things up') + abs(40,177,'sub20','Pick a task, then pick the sites I use for it.')
+      + spots + abs(720,255,'sub20',`For ${SOURCES[state.srcTask].t}, use:`) + opts
+      + `<div class="t choice dash" data-act="nb" style="${px(720,587,520,80)}"><i class="fill"></i><div class="tx"><b>More choices</b></div></div>`
+      + pill(40,672,260,'Undo changes','srcUndo');
   },
   ways(){
     const ring96 = `<svg class="demo-ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#dcd3ff" stroke-width="4"/><circle class="rp" cx="26" cy="26" r="22" fill="none" stroke="#6d4aff" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90 26 26)"/></svg>`;
@@ -549,6 +567,13 @@ function act(a){
   if(k === 'settings'){ state.orig = state.spots[2]; state.draft = state.orig; return go('settings'); }
   if(k === 'pick'){ state.draft = v; return go('settings', true); }
   if(k === 'undo'){ state.draft = state.orig; return go('settings', true); }
+  if(k === 'srcOpen'){ state.srcBack = v; state.srcTask = v==='cleaning' ? 'homehelp' : state.srcTask; state.srcSnap = JSON.stringify(state.src); return go('sources'); }
+  if(k === 'srcTask'){ state.srcTask = v; return go('sources', true); }
+  if(k === 'tog'){ const list = state.src[state.srcTask], o = SOURCES[state.srcTask].opts[+v].t, i = list.indexOf(o);
+    if(i >= 0){ if(list.length > 1) list.splice(i,1); else toast('Keep at least one site turned on.'); } else list.push(o);
+    return go('sources', true); }
+  if(k === 'srcUndo'){ state.src = JSON.parse(state.srcSnap); return go('sources', true); }
+  if(k === 'srcDone'){ return go(state.srcBack); }
   if(k === 'done'){ state.spots[2] = state.draft; return go('home'); }
 }
 

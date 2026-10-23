@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BCI Daily Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef0f7; --ink:#1b1e3a; --muted:#5a5f7d; --body:#3c4060;
+  --accent:#6d4aff; --accent-ink:#5b3fe0; --soft:#f4f0ff; --track:#dcd3ff;
+  --stop:#c2335b; --work:#d9481f; --note:#0047AB;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink);overflow:hidden;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+
+/* ---------- Prototype controls (annotation layer, blue) ---------- */
+#chrome{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 16px;
+  background:#fff;border-bottom:2px solid var(--note);font-size:14px;color:var(--note)}
+#chrome .label{font-weight:700;letter-spacing:.02em}
+.seg{display:flex;border:1.5px solid var(--note);border-radius:999px;overflow:hidden}
+.seg button,.cbtn{font:inherit;font-weight:600;color:var(--note);background:#fff;border:0;padding:6px 14px;cursor:pointer}
+.seg button+button{border-left:1.5px solid var(--note)}
+.seg button.cur,.cbtn.cur{background:var(--note);color:#fff}
+.cbtn{border:1.5px solid var(--note);border-radius:999px}
+.cbtn:not(.cur):hover,.seg button:not(.cur):hover{background:#e8effa}
+#help{color:#1d3f75;flex:1 1 260px;min-width:0}
+#viewport{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:var(--note);color:#fff;
+  font-size:15px;font-weight:600;padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;
+  transition:opacity .25s,transform .25s;white-space:nowrap;z-index:9}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- Stage: the 1280 x 800 Figma frame ---------- */
+#stage{flex:none;width:1280px;height:800px;position:relative;overflow:hidden;background:var(--bg);
+  border-radius:18px;box-shadow:0 20px 60px rgba(20,24,60,.18);transform-origin:center center}
+.screen{position:absolute;inset:0}
+.screen.enter{animation:enter .34s cubic-bezier(.2,.8,.2,1)}
+@keyframes enter{from{opacity:0;transform:translateY(12px)}}
+.backdrop{position:absolute;left:820px;top:-220px;width:620px;height:620px;border-radius:50%;
+  background:radial-gradient(circle,rgba(200,204,255,.85) 0%,rgba(205,208,255,.45) 45%,rgba(205,208,255,0) 72%);
+  filter:blur(24px);pointer-events:none}
+.abs{position:absolute;white-space:nowrap}
+.h48{font-size:48px;font-weight:700;letter-spacing:-.48px}
+.h44{font-size:44px;font-weight:700;letter-spacing:-.44px}
+.ctr{left:40px;width:1200px;text-align:center}
+.sub22{font-size:22px;color:var(--muted)}
+.sub20{font-size:20px;color:var(--muted)}
+
+.glass{background:rgba(255,255,255,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid #fff;box-shadow:0 8px 24px rgba(20,24,60,.07)}
+.dash{background:rgba(255,255,255,.4);border:1px dashed #a9aecb}
+
+/* top bar */
+.topbar{position:absolute;left:40px;top:32px;width:1200px;height:52px;display:flex;align-items:center;justify-content:space-between}
+.status{display:flex;align-items:center;gap:10px;font-size:18px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.wdot{position:relative;width:20px;height:20px;margin:0 -5px 0 0}
+.wdot::before,.wdot::after{content:"";position:absolute;border-radius:50%;background:var(--work)}
+.wdot::after{left:5px;top:5px;width:10px;height:10px}
+.wdot::before{inset:0;opacity:.22;animation:breathe 1.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(.5);opacity:.35}50%{transform:scale(1);opacity:.18}}
+.tops{display:flex;align-items:center;gap:64px}
+.stopb,.setb,.doneb{position:relative;overflow:hidden;height:52px;border-radius:26px;display:flex;align-items:center;font-size:20px}
+.stopb{background:var(--stop);color:#fff;font-weight:700;padding:0 24px;gap:8px}
+.stopb i.sq{width:14px;height:14px;background:#fff;border-radius:2px}
+.setb{padding:0 28px;font-weight:600}
+.doneb{background:var(--accent);color:#fff;font-weight:700;padding:0 28px}
+
+/* targets */
+.t{cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  transition:background-color .2s,border-color .2s,box-shadow .2s}
+.t.sel,.on{background:var(--soft);border:3px solid var(--accent);box-shadow:0 8px 24px rgba(109,74,255,.16)}
+.stopb.sel,.doneb.sel{border:0;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--accent)}
+.stopb.sel{background:var(--stop)} .doneb.sel{background:var(--accent)}
+.t.fired{animation:pop .28s ease-out}
+@keyframes pop{40%{transform:scale(.965)}}
+.t > *{position:relative}
+.fill{position:absolute!important;left:0;top:0;bottom:0;width:0;background:rgba(109,74,255,.16);pointer-events:none}
+.stopb .fill,.doneb .fill{background:rgba(255,255,255,.28)}
+
+.tile{position:absolute;display:flex;flex-direction:column;justify-content:flex-end;padding:28px 32px;white-space:nowrap}
+.tile .tt{color:var(--ink)} .tile .td{color:var(--muted)}
+.tile .tag{position:absolute;left:29px;top:25px;font-size:18px;font-weight:600;color:var(--accent-ink)}
+.ring{position:absolute!important;right:20px;top:17px;width:52px;height:52px;opacity:0;transition:opacity .2s}
+.t.sel .ring{opacity:1}
+.pill{position:absolute;height:72px;border-radius:36px;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;font-size:22px;font-weight:600;white-space:nowrap}
+.assume{position:absolute;right:40px;top:672px;display:flex;align-items:center;gap:64px}
+.assume p{font-size:20px;color:var(--muted);white-space:nowrap}
+.assume .pill{position:relative}
+
+/* 02 text bar */
+.tbar{position:absolute;display:flex;align-items:center;gap:3px;padding:0 36px;border-radius:28px}
+.tbar .dec{font-size:40px;font-weight:600;min-height:48px}
+.caret{width:3px;height:44px;background:var(--accent);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.tbar .tbh{position:absolute;right:36px;top:40px;font-size:18px;color:var(--muted)}
+
+/* 03 status card */
+.card{position:absolute;display:flex;flex-direction:column;gap:28px;padding:48px;border-radius:36px}
+.card .hd{display:flex;flex-direction:column;gap:10px;white-space:nowrap}
+.card h2{font-size:40px;font-weight:700;letter-spacing:-.4px}
+.card .hd p{font-size:22px;color:var(--muted)}
+.steps{display:flex;gap:8px}
+.steps i{flex:1;height:8px;border-radius:4px;background:var(--track);position:relative;overflow:hidden}
+.steps i b{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;background:var(--work)}
+.steps i.done{background:var(--accent);transition:background .25s} .steps i.done b{display:none}
+.card .next{font-size:20px}
+
+/* hold to confirm */
+.hold{position:absolute;border-radius:50%}
+.hold svg.hr{position:absolute;inset:0}
+.hb{position:absolute!important;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  background:rgba(255,255,255,.8);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid #fff;
+  box-shadow:0 12px 32px rgba(20,24,60,.1);transition:background .25s,box-shadow .25s,transform .25s}
+.hb b{font-weight:700} .hb span{color:var(--muted)}
+.hold.sel{background:none;border:0;box-shadow:none}
+.hold.sel .hb{box-shadow:0 12px 32px rgba(109,74,255,.22)}
+.hold .hk{display:none;width:64px;height:44px}
+.hold.fired .hb{background:linear-gradient(180deg,#7a4cff,#a98bff);transform:scale(1.03)}
+.hold.fired .hb b,.hold.fired .hb span{display:none}
+.hold.fired .hk{display:block}
+.hold.fired .hk path{animation:draw .35s ease-out forwards}
+
+/* done screens */
+.donec{position:absolute;left:540px;top:172px;width:200px;height:200px;border-radius:50%;
+  background:linear-gradient(180deg,#7547ff 0%,#8f6bff 55%,#b49bff 100%);border:2px solid rgba(255,255,255,.9);
+  box-shadow:0 14px 30px rgba(109,74,255,.28);display:flex;align-items:center;justify-content:center;
+  animation:land .55s cubic-bezier(.3,1.5,.5,1)}
+@keyframes land{from{transform:scale(.55);opacity:0}}
+.donec path,.hk path{stroke-dasharray:140;stroke-dashoffset:140}
+.donec path{animation:draw .45s .25s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* 08 message */
+.msg{position:absolute;display:flex;flex-direction:column;gap:18px;padding:36px 40px;border-radius:28px}
+.msg .m{font-size:24px;line-height:1.5;width:784px}
+.msg .rc{font-size:18px;color:var(--muted);white-space:nowrap}
+
+/* 09 replies */
+.reply{position:absolute;display:flex;flex-direction:column;justify-content:space-between;padding:32px 36px;border-radius:32px;white-space:nowrap}
+.reply .biz{display:flex;flex-direction:column;gap:10px}
+.reply .tg{font-size:18px;font-weight:600;color:var(--muted)} .reply .tg.best{color:var(--accent-ink)}
+.reply .nm{font-size:34px;font-weight:700} .reply .rt{font-size:20px;color:var(--body)}
+.reply .q{font-size:24px;font-weight:600}
+
+/* 11 summary */
+.sum{position:absolute;display:flex;flex-direction:column;gap:6px;padding:28px 36px;border-radius:28px;white-space:nowrap}
+
+/* 10 settings */
+.spot{position:absolute;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;padding:20px 24px;border-radius:24px;white-space:nowrap}
+.spot b{font-size:24px;font-weight:600} .spot span{font-size:16px;color:var(--muted)}
+.choice{position:absolute;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-radius:24px;white-space:nowrap;overflow:hidden}
+.choice .tx{display:flex;flex-direction:column;gap:2px}
+.choice b{font-size:22px;font-weight:600} .choice span{font-size:16px;color:var(--muted)}
+.choice .mk{font-size:18px;font-weight:600;color:var(--accent-ink)}
+.choice .ring,.spot .ring{display:none}
+
+/* 06 three ways */
+.methods{position:absolute;left:40px;top:230px;display:flex;gap:64px;align-items:flex-start}
+.method{width:357px;display:flex;flex-direction:column;gap:20px}
+.method .demo{position:relative;height:200px;border-radius:28px;overflow:hidden}
+.method h3{font-size:28px;font-weight:700}
+.method p{font-size:20px;line-height:1.45;color:var(--body)}
+.demo-ring{position:absolute;left:130px;top:52px;width:96px;height:96px}
+.demo-ring .rp{animation:dwell 2.6s linear infinite}
+@keyframes dwell{0%{stroke-dashoffset:100}75%,100%{stroke-dashoffset:0}}
+.cbar{position:absolute;left:68px;top:82px;width:220px;height:36px}
+.cbar .tr,.cbar .cf{position:absolute;left:0;top:12px;height:12px;border-radius:6px}
+.cbar .tr{width:220px;background:var(--track)}
+.cbar .cf{width:18px;background:var(--accent)}
+.cbar .th{position:absolute;left:154px;top:0;width:2px;height:36px;background:var(--ink)}
+.method .cbar .cf{animation:conf 2.6s ease-in-out infinite}
+@keyframes conf{0%{width:18px}55%,80%{width:192px}100%{width:18px}}
+.scan{position:absolute;left:44px;top:62px;width:268px;height:76px}
+.scan i{position:absolute;top:6px;width:64px;height:64px;border-radius:18px;background:#e2e5f2}
+.scan .so{position:absolute;left:0;top:0;width:76px;height:76px;border:4px solid var(--accent);border-radius:22px;animation:scan 3.6s steps(1) infinite}
+@keyframes scan{0%{left:0}33.33%{left:96px}66.66%{left:192px}}
+
+/* live confidence bar for Neural mode */
+#conf{position:absolute;width:252px;height:60px;border-radius:30px;padding:12px 16px;opacity:0;pointer-events:none;
+  transition:opacity .15s;z-index:5}
+#conf .cbar{left:16px;top:12px}
+#conf.pass .cf{background:var(--accent-ink);box-shadow:0 0 0 3px rgba(109,74,255,.25)}
+
+@media (max-width:760px){#help{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+</head>
+<body>
+<div id="chrome">
+  <span class="label">Input</span>
+  <div class="seg" id="modes">
+    <button data-mode="eyes" class="cur">Eyes</button>
+    <button data-mode="neural">Neural</button>
+    <button data-mode="switch">Switch</button>
+  </div>
+  <span id="help"></span>
+  <button class="cbtn" id="ways">Three ways to choose</button>
+  <button class="cbtn" id="restart">Restart</button>
+</div>
+<div id="viewport"><div id="stage"></div></div>
+<div id="toast"></div>
+
+<script>
+const S = document.getElementById('stage');
+const MODE = {eyes:'Eyes', neural:'Neural', switch:'Switch'};
+const HELP = {
+  eyes:'Rest the pointer on a target until its ring closes. To pay or send, rest on the circle for 3 seconds. Click or tap also works.',
+  neural:'Point at a target, then hold Space until the bar passes the line. To pay or send, hold Space on the circle for 3 seconds. Click or tap also works.',
+  switch:'Press Space when the outline reaches your choice. To pay or send, hold Space for 3 seconds. Click or tap also works.'
+};
+const CAT = {
+  groceries:{t:'Groceries', home:'Reorder on Amazon Fresh', set:'Reorder on Amazon', go:'reorder'},
+  travel:{t:'Travel', home:'Book on Southwest', set:'Book on Southwest', go:'where'},
+  homehelp:{t:'Home help', home:'Find a 5-star cleaner on Yelp', set:'Find a cleaner on Yelp', go:'cleaning'},
+  pharmacy:{t:'Pharmacy', home:'Refill a prescription', set:'Refill a prescription', go:'rx'},
+  something:{t:'Something else', home:'Say it in your own words', set:'Always here', go:null}
+};
+const FLIGHTS = [
+  {time:'8:05 AM', price:'$129', d:'Nonstop · $129', tag:'Best match'},
+  {time:'6:15 AM', price:'$89', d:'Nonstop · $89'},
+  {time:'10:40 AM', price:'$98', d:'Nonstop · $98'}
+];
+const SLOTS = [
+  {t:'Tomorrow', d:'10 AM to noon · Sam is home', sum:'tomorrow, 10 AM to noon', tag:'Best match'},
+  {t:'Today', d:'4 to 6 PM · no one home to help', sum:'today, 4 to 6 PM'},
+  {t:'Saturday', d:'9 to 11 AM · Sam is home', sum:'Saturday, 9 to 11 AM'}
+];
+const RX_TIMES = [
+  {t:'Delivery', d:'Tomorrow, 2 to 4 PM · Sam is home', sum:'tomorrow, 2 to 4 PM', tag:'Best match'},
+  {t:'Pickup', d:'Ready today after 5 PM · Sam picks up', sum:'pickup today after 5 PM'},
+  {t:'Saturday', d:'Delivery, 9 to 11 AM · Sam is home', sum:'Saturday, 9 to 11 AM'}
+];
+const RX = [{t:'Lisinopril', d:'10 mg · due Monday'},{t:'Metformin', d:'500 mg · due in 2 weeks'}];
+const DEFAULT_SPOTS = ['groceries','travel','homehelp','something'];
+const state = {screen:'home', mode:'eyes', spots:[...DEFAULT_SPOTS], orig:null, draft:null, flight:0, slot:0, rx:0, rxTime:0, tok:0};
+
+/* ---------- building blocks ---------- */
+const px = (x,y,w,h) => `left:${x}px;top:${y}px;${w?`width:${w}px;`:''}${h?`height:${h}px;`:''}`;
+const RING = `<svg class="ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#dcd3ff" stroke-width="4"/><circle class="rp" cx="26" cy="26" r="22" fill="none" stroke="#6d4aff" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90 26 26)"/></svg>`;
+const CHECK = (w,h,sw) => `<svg viewBox="0 0 82 52" width="${w}" height="${h}" fill="none"><path d="M6 27 L30 46 L76 6" stroke="#fff" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const BACKDROP = `<div class="backdrop"></div>`;
+
+function topBar(status, o={}){
+  const {work=false, stop=true, settings=false, done=false} = o;
+  const right = [
+    settings ? `<div class="t setb glass" data-act="settings"><i class="fill"></i><span>Settings</span></div>` : '',
+    stop ? `<div class="t stopb" data-act="go:home" data-last="1"><i class="fill"></i><i class="sq"></i><span>Stop</span></div>` : '',
+    done ? `<div class="t doneb" data-act="done"><i class="fill"></i><span>Done</span></div>` : ''
+  ].join('');
+  return `<div class="topbar"><div class="status">${work?'<i class="wdot"></i>':'<i class="dot"></i>'}<span>${status}</span></div><div class="tops">${right}</div></div>`;
+}
+function tile(o){
+  const {x,y,w,h,t,d,act,best,tag,r=28,ts=32,tw=600,ds=18,gap=6} = o;
+  return `<div class="t tile glass" ${best?'data-best="1"':''} data-act="${act}" style="${px(x,y,w,h)}border-radius:${r}px;gap:${gap}px">${tag?`<span class="tag">${tag}</span>`:''}<span class="tt" style="font-size:${ts}px;font-weight:${tw}">${t}</span><span class="td" style="font-size:${ds}px">${d}</span>${RING}</div>`;
+}
+const row3 = (y,h,items,common={}) => items.map((it,i)=>tile({x:40+i*421,y,w:357,h,...common,...it})).join('');
+const pill = (x,y,w,label,act) => `<div class="t pill glass" data-act="${act}" style="${px(x,y,w)}"><i class="fill"></i><span>${label}</span></div>`;
+const pillR = (w,label,act) => `<div class="t pill glass" data-act="${act}" style="width:${w}px"><i class="fill"></i><span>${label}</span></div>`;
+const assume = (text) => `<div class="assume"><p>${text}</p>${pillR(220,'Change these','nb')}</div>`;
+const abs = (x,y,cls,text) => `<p class="abs ${cls}" style="${px(x,y)}">${text}</p>`;
+const ctr = (y,cls,text) => `<p class="abs ctr ${cls}" style="top:${y}px">${text}</p>`;
+
+function hold(x,y,size,label,act){
+  const big = size===280, c=size/2, r=big?130:111, sw=big?16:14, inner=big?220:188, off=(size-inner)/2;
+  return `<div class="t hold" data-best="1" data-act="${act}" style="${px(x,y,size,size)}">
+    <svg class="hr" viewBox="0 0 ${size} ${size}"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#dcd3ff" stroke-width="${sw}"/>
+    <circle class="hp" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#6d4aff" stroke-width="${sw}" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90 ${c} ${c})"/></svg>
+    <div class="hb" style="${px(off,off,inner,inner)}"><b style="font-size:${big?32:30}px">${label}</b><span style="font-size:${big?18:17}px">Hold to confirm</span><span class="hk">${CHECK(64,41,9)}</span></div></div>`;
+}
+const doneMark = () => `<div class="donec">${CHECK(82,52,10)}</div>`;
+
+/* ---------- screens (text and layout from the Figma file) ---------- */
+const SCREENS = {
+  home(){
+    const pos = [[140,234],[672,234],[140,498],[672,498]];
+    const tiles = state.spots.map((k,i)=>{const c=CAT[k];
+      return tile({x:pos[i][0], y:pos[i][1], w:468, h:200, t:c.t, d:c.home, ds:20, best:i===1, act:c.go?`go:${c.go}`:'nb'});}).join('');
+    return BACKDROP + topBar(`Agent ready · ${MODE[state.mode]}`,{settings:true})
+      + abs(140,140,'h48','What should I do for you?') + tiles
+      + abs(140,734,'sub20','Keep looking at a tile to choose it.');
+  },
+  where(){
+    return BACKDROP + topBar('Travel · listening') + abs(40,132,'h48','Where do you want to go?')
+      + `<div class="tbar glass" style="${px(40,218,1200,104)}"><span class="dec" id="dec"></span><i class="caret"></i><span class="tbh">Think the words</span></div>`
+      + row3(386,160,[
+          {t:'San Diego', d:'Matches what you typed', best:true, act:'go:working'},
+          {t:'Seattle', d:'Your last trip', act:'nb'},
+          {t:'Spell it', d:'Open the letter board', act:'nb'}])
+      + pill(40,672,220,'Back','go:home') + assume('From San Jose · this Friday · just you');
+  },
+  working(){
+    return BACKDROP + topBar('Agent working',{work:true})
+      + `<div class="card glass" style="${px(260,180,760)}"><div class="hd"><h2>Finding flights to San Diego</h2><p>Comparing morning nonstops for Friday.</p></div>
+         <div class="steps">${'<i><b></b></i>'.repeat(5)}</div><p class="next">Next, you pick a flight. Nothing is booked until you confirm.</p></div>`
+      + pill(348,672,260,'Watch the screen','nb') + pill(672,672,260,'Pause','nb');
+  },
+  flight(){
+    return BACKDROP + topBar('Waiting for you · nothing booked yet') + abs(40,140,'h48','Which flight?')
+      + row3(238,300, FLIGHTS.map((f,i)=>({t:f.time, d:f.d, tag:f.tag, best:i===0, act:`flight:${i}`})), {r:32, ts:48, tw:700, ds:20, gap:8})
+      + pill(348,672,260,'Back','go:where') + pill(672,672,260,'None of these','nb');
+  },
+  pay(){
+    const f = FLIGHTS[state.flight];
+    return BACKDROP + topBar('Waiting for you') + ctr(120,'h48',`Pay ${f.price} for this flight?`)
+      + ctr(186,'sub22',`Fri Oct 23 · ${f.time} to San Diego · Visa ending 4417`)
+      + hold(500,252,280,'Pay','go:booked')
+      + ctr(556,'sub20','Keep looking at the circle for 3 seconds. Look away to cancel.')
+      + pill(510,672,260,'Not yet','go:flight');
+  },
+  booked(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Booked')
+      + ctr(470,'sub22','I sent the confirmation to you and to Sam.') + pill(510,672,260,'Back to home','go:home');
+  },
+  cleaning(){
+    return BACKDROP + topBar('Home help · listening') + abs(40,140,'h48','What cleaning do you need?')
+      + row3(238,220,[
+          {t:'Regular clean', d:'Every two weeks', best:true, act:'go:approve'},
+          {t:'Deep clean', d:'One time', act:'nb'},
+          {t:'Something else', d:'Say it in your own words', act:'nb'}])
+      + pill(40,672,220,'Back','go:home') + assume('5 stars on Yelp · near home · starts next week');
+  },
+  approve(){
+    return BACKDROP + topBar('Waiting for you · nothing sent yet') + abs(40,140,'h48','Send this to 3 cleaners?')
+      + `<div class="msg glass" style="${px(40,238,864)}"><p class="m">Hi, I'd like a quote for a regular clean every two weeks, starting next week. It's a 2-bedroom apartment. I use a wheelchair, so please keep floors clear of cords. Thanks, Maya</p><p class="rc">Goes to the 3 cleaners rated 5 stars with the most reviews</p></div>`
+      + hold(1000,229,240,'Send','go:sent')
+      + pill(40,672,220,'Not yet','go:cleaning') + pill(324,672,220,'Change words','nb');
+  },
+  sent(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Sent to 3 cleaners')
+      + ctr(470,'sub22',"I'll show you their replies as they come in.")
+      + pill(348,672,260,'Back to home','go:home') + pill(672,672,260,'See replies','go:replies');
+  },
+  replies(){
+    const card = (x,tag,best,nm,rt,q) => `<div class="t reply glass" ${best?'data-best="1"':''} data-act="${best?'go:book':'nb'}" style="${px(x,238,568,280)}"><div class="biz"><span class="tg${best?' best':''}">${tag}</span><span class="nm">${nm}</span><span class="rt">${rt}</span></div><span class="q">${q}</span>${RING}</div>`;
+    return BACKDROP + topBar('Waiting on 1 more reply',{work:true}) + abs(40,140,'h48','Two cleaners replied')
+      + card(40,'Best match',true,'Bright Corner Cleaning','5 stars · 212 reviews','$140 a visit · can start Tuesday')
+      + card(672,'Fewer reviews',false,"Mira's Home Care",'5 stars · 9 reviews','$110 a visit · can start Monday')
+      + pill(40,672,260,'Wait for the third','nb') + pill(364,672,260,'Read their messages','nb');
+  },
+  reorder(){
+    return BACKDROP + topBar('Groceries · Amazon Fresh') + abs(40,140,'h48','Reorder your usual groceries?')
+      + `<div class="sum glass" style="${px(40,238,1200)}"><p style="font-size:26px;font-weight:600">14 items from your order on Oct 6</p><p class="sub20">About $91 · 1 item is out of stock</p></div>`
+      + row3(421,180,[
+          {t:'Reorder', d:'Fix the missing item first', best:true, act:'go:swap'},
+          {t:'Change the list', d:'Add or remove items', act:'nb'},
+          {t:'Read the list', d:'See all 14 items', act:'nb'}])
+      + pill(40,672,220,'Back','go:home') + assume('Delivered to home · Visa ending 4417');
+  },
+  swap(){
+    return BACKDROP + topBar('Waiting for you · nothing ordered yet') + abs(40,140,'h48','Oat milk is out of stock')
+      + abs(40,206,'sub22','Pick a swap, or order without it.')
+      + row3(276,260,[
+          {t:'Store-brand oat milk', d:'Same size · $3.99', tag:'Closest match', best:true, act:'go:delivery'},
+          {t:'Almond milk', d:'Same size · $4.29', act:'go:delivery'},
+          {t:'Skip it', d:'Order without milk', act:'go:delivery'}], {ts:30})
+      + pill(40,672,220,'Back','go:reorder');
+  },
+  delivery(){
+    return BACKDROP + topBar('Waiting for you · nothing ordered yet') + abs(40,140,'h48','When should it arrive?')
+      + abs(40,206,'sub22','Pick a time when someone can bring the bags inside.')
+      + row3(276,260, SLOTS.map((s,i)=>({t:s.t, d:s.d, tag:s.tag, best:i===0, act:`slot:${i}`})))
+      + pill(40,672,220,'Back','go:swap');
+  },
+  paygroc(){
+    return BACKDROP + topBar('Waiting for you') + ctr(120,'h48','Pay $91.40 for groceries?')
+      + ctr(186,'sub22',`14 items · ${SLOTS[state.slot].sum} · Visa ending 4417`)
+      + hold(500,252,280,'Pay','go:placed')
+      + ctr(556,'sub20','Keep looking at the circle for 3 seconds. Look away to cancel.')
+      + pill(510,672,260,'Not yet','go:delivery');
+  },
+  placed(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Order placed')
+      + ctr(470,'sub22','I sent the receipt to you and to Sam.') + pill(510,672,260,'Back to home','go:home');
+  },
+  book(){
+    return BACKDROP + topBar('Waiting for you · nothing booked yet') + ctr(120,'h48','Book Bright Corner Cleaning?')
+      + ctr(186,'sub22','$140 a visit · every two weeks · starts Tuesday')
+      + hold(500,252,280,'Book','go:cleanerBooked')
+      + ctr(556,'sub20','Keep looking at the circle for 3 seconds. Look away to cancel.')
+      + pill(510,672,260,'Not yet','go:replies');
+  },
+  cleanerBooked(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Cleaner booked')
+      + ctr(470,'sub22','Bright Corner Cleaning starts Tuesday. I added it to your calendar.') + pill(510,672,260,'Back to home','go:home');
+  },
+  rx(){
+    return BACKDROP + topBar('Pharmacy · listening') + abs(40,140,'h48','Which prescription do you need?')
+      + row3(238,220,[
+          {t:RX[0].t, d:RX[0].d, best:true, act:'rx:0'},
+          {t:RX[1].t, d:RX[1].d, act:'rx:1'},
+          {t:'Something else', d:'Say it in your own words', act:'nb'}])
+      + pill(40,672,220,'Back','go:home') + assume('Your usual pharmacy · insurance on file');
+  },
+  rxHow(){
+    return BACKDROP + topBar('Waiting for you · nothing ordered yet') + abs(40,140,'h48','How should you get it?')
+      + abs(40,206,'sub22','Pick a time when someone can bring it inside.')
+      + row3(276,260, RX_TIMES.map((s,i)=>({t:s.t, d:s.d, tag:s.tag, best:i===0, act:`rxTime:${i}`})))
+      + pill(40,672,220,'Back','go:rx');
+  },
+  rxPay(){
+    const r = RX[state.rx];
+    return BACKDROP + topBar('Waiting for you') + ctr(120,'h48','Pay $10 for this refill?')
+      + ctr(186,'sub22',`${r.t} ${r.d.split(' · ')[0]} · ${RX_TIMES[state.rxTime].sum} · Visa ending 4417`)
+      + hold(500,252,280,'Pay','go:rxDone')
+      + ctr(556,'sub20','Keep looking at the circle for 3 seconds. Look away to cancel.')
+      + pill(510,672,260,'Not yet','go:rxHow');
+  },
+  rxDone(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Refill ordered')
+      + ctr(470,'sub22','I sent the receipt to you and to Sam.') + pill(510,672,260,'Back to home','go:home');
+  },
+  settings(){
+    const d = state.draft, changed = d !== state.orig, other = d==='pharmacy' ? 'homehelp' : 'pharmacy';
+    const spots = [state.spots[0], state.spots[1], d, 'something'];
+    const pos = [[40,255],[364,255],[40,459],[364,459]];
+    const spotHtml = spots.map((k,i)=>{const c=CAT[k], st=px(pos[i][0],pos[i][1],260,140);
+      if(i===3) return `<div class="spot dash" style="${st}"><b>${c.t}</b><span>${c.set}</span></div>`;
+      if(i===2) return `<div class="t spot on" data-act="noop" style="${st}"><b>${c.t}</b><span>${c.set}</span></div>`;
+      return `<div class="t spot glass" data-act="nb" style="${st}"><b>${c.t}</b><span>${c.set}</span></div>`;}).join('');
+    const choice = (y,k,mark,act) => `<div class="t choice ${mark?'on':'glass'}" data-act="${act}" style="${px(720,y,520,80)}"><i class="fill"></i><div class="tx"><b>${CAT[k].t}</b><span>${CAT[k].set}</span></div>${mark?'<span class="mk">In this spot</span>':''}</div>`;
+    return BACKDROP + topBar('Settings',{stop:false, done:true}) + abs(40,116,'h44',"Choose what's on your home screen")
+      + abs(40,177,'sub20', changed ? 'Pick a spot, then pick what goes there. If someone else sets this up, you approve each change.' : 'Pick a category, then pick what goes there.')
+      + spotHtml + abs(720,255,'sub20','Put in spot 3:')
+      + choice(299,d,true,'noop') + choice(443,other,false,`pick:${other}`)
+      + `<div class="t choice dash" data-act="nb" style="${px(720,587,520,80)}"><i class="fill"></i><div class="tx"><b>More choices</b></div></div>`
+      + pill(40,672,260,'Undo changes','undo');
+  },
+  ways(){
+    const ring96 = `<svg class="demo-ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#dcd3ff" stroke-width="4"/><circle class="rp" cx="26" cy="26" r="22" fill="none" stroke="#6d4aff" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90 26 26)"/></svg>`;
+    const m = (demo,name,how) => `<div class="method"><div class="demo glass">${demo}</div><h3>${name}</h3><p>${how}</p></div>`;
+    return BACKDROP + abs(40,72,'h44','Three ways to choose')
+      + abs(40,132,'sub22','The screens stay the same. Paying or sending always takes a longer hold.')
+      + `<div class="methods">`
+      + m(ring96,'Eyes','Keep looking until the ring closes. Look away to cancel.')
+      + m(`<div class="cbar"><i class="tr"></i><i class="cf"></i><i class="th"></i></div>`,'Neural','Try to squeeze your hand until the bar passes the line. If it falls short, the agent asks again.')
+      + m(`<div class="scan"><i style="left:6px"></i><i style="left:102px"></i><i style="left:198px"></i><span class="so"></span></div>`,'Switch','Press when the outline reaches your choice. The best guess always comes first.')
+      + `</div>`;
+  }
+};
+
+/* screen-entry motion */
+const ENTER = {
+  where(){
+    const el = document.getElementById('dec'), word = 'San Die'; let i = 0;
+    const type = () => { if(i <= word.length){ el.textContent = word.slice(0,i++); later(type, i===1?350:170); } };
+    type();
+  },
+  working(){
+    const steps = [...S.querySelectorAll('.steps i')], tok = state.tok, D = 1150, t0 = performance.now();
+    const f = now => {
+      if(tok !== state.tok) return;
+      const e = (now - t0)/D, k = Math.floor(e);
+      steps.forEach((s,j)=>{ s.classList.toggle('done', j<k); s.firstChild.style.width = j===k ? Math.max(6.4,(e-k)*100)+'%' : '0'; });
+      if(k >= 5){ later(()=>go('flight'), 350); return; }
+      requestAnimationFrame(f);
+    };
+    requestAnimationFrame(f);
+  }
+};
+
+/* ---------- navigation ---------- */
+let timers = [];
+const later = (fn,ms) => timers.push(setTimeout(fn,ms));
+let targets = [], hovered = null, pressT = null, spaceDown = false, scanI = 0, scanAcc = 0, conf = 0, busy = false;
+
+function go(id, quiet){
+  timers.forEach(clearTimeout); timers = [];
+  state.tok++; state.screen = id; busy = false; hovered = null; pressT = null; conf = 0;
+  S.innerHTML = `<div class="screen${quiet?'':' enter'}">${SCREENS[id]()}</div><div id="conf" class="glass"><div class="cbar"><i class="tr"></i><i class="cf"></i><i class="th"></i></div></div>`;
+  const all = [...S.querySelectorAll('.t')];
+  const rank = t => t.dataset.best ? 0 : t.dataset.last ? 2 : 1;
+  targets = all.map((t,i)=>({t,i})).sort((a,b)=>rank(a.t)-rank(b.t) || a.i-b.i).map(o=>o.t);
+  targets.forEach(bind);
+  scanI = 0; scanAcc = 0; focus(null);
+  ENTER[id] && ENTER[id]();
+  document.getElementById('ways').classList.toggle('cur', id==='ways');
+}
+
+function bind(t){
+  t._p = 0;
+  const isHold = t.classList.contains('hold');
+  t.addEventListener('pointerenter', e => { if(e.pointerType !== 'mouse') return; hovered = t; conf = 0; if(state.mode !== 'switch') focus(t); });
+  t.addEventListener('pointerleave', e => { if(hovered === t){ hovered = null; conf = 0; } t._lock = false; if(state.mode !== 'switch') focus(null); });
+  if(isHold){
+    t.addEventListener('pointerdown', e => { pressT = t; t.setPointerCapture && t.setPointerCapture(e.pointerId); });
+    const up = () => { if(pressT === t) pressT = null; };
+    t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
+  } else {
+    t.addEventListener('click', () => fire(t, true));
+  }
+}
+
+function focus(t){
+  if(!t && state.mode === 'switch') t = targets[scanI];
+  if(!t) t = targets.find(x => x.dataset.best) || null;
+  targets.forEach(x => x.classList.toggle('sel', x === t));
+}
+
+function fire(t){
+  if(busy) return;
+  const a = t.dataset.act;
+  t.classList.remove('fired'); void t.offsetWidth; t.classList.add('fired');
+  if(a === 'nb' || a === 'noop'){
+    t._p = 0; t._lock = true; paint(t); conf = 0;
+    if(a === 'nb') toast('This target has no next screen in the Figma file yet.');
+    return;
+  }
+  busy = true;
+  later(() => act(a), t.classList.contains('hold') ? 650 : 220);
+}
+
+function act(a){
+  const [k,v] = a.split(':');
+  if(k === 'go') return go(v);
+  if(k === 'flight'){ state.flight = +v; return go('pay'); }
+  if(k === 'slot'){ state.slot = +v; return go('paygroc'); }
+  if(k === 'rx'){ state.rx = +v; return go('rxHow'); }
+  if(k === 'rxTime'){ state.rxTime = +v; return go('rxPay'); }
+  if(k === 'settings'){ state.orig = state.spots[2]; state.draft = state.orig; return go('settings'); }
+  if(k === 'pick'){ state.draft = v; return go('settings', true); }
+  if(k === 'undo'){ state.draft = state.orig; return go('settings', true); }
+  if(k === 'done'){ state.spots[2] = state.draft; return go('home'); }
+}
+
+/* ---------- input loop: dwell, hold, neural squeeze, switch scan ---------- */
+function cur(){ return state.mode === 'switch' ? targets[scanI] : hovered; }
+
+function paint(t){
+  const ring = t.querySelector('.ring .rp'); if(ring) ring.style.strokeDashoffset = 100 - t._p*100;
+  const hp = t.querySelector('.hp'); if(hp) hp.style.strokeDashoffset = 100 - t._p*100;
+  const fill = t.querySelector(':scope > .fill'); if(fill) fill.style.width = t._p*100 + '%';
+}
+
+function paintConf(){
+  const c = document.getElementById('conf'); if(!c) return;
+  const t = state.mode === 'neural' ? hovered : null;
+  if(!t || busy || t.classList.contains('hold')){ c.style.opacity = 0; return; }
+  if(c._t !== t){
+    c._t = t;
+    const sr = S.getBoundingClientRect(), r = t.getBoundingClientRect(), k = sr.width/1280;
+    let x = (r.left + r.width/2 - sr.left)/k - 126, y = (r.top - sr.top)/k - 70;
+    if(y < 8) y = (r.bottom - sr.top)/k + 10;
+    c.style.left = Math.max(8, Math.min(1280-260, x)) + 'px'; c.style.top = y + 'px';
+  }
+  c.style.opacity = 1;
+  c.querySelector('.cf').style.width = (18 + conf*202) + 'px';
+  c.classList.toggle('pass', conf >= .7);
+}
+
+let last = performance.now();
+function tick(now){
+  const dt = Math.min(50, now - last); last = now;
+  if(!busy){
+    const c = cur();
+    for(const t of targets){
+      const isHold = t.classList.contains('hold');
+      let filling = pressT === t;
+      if(state.mode === 'eyes' && hovered === t && !t._lock) filling = true;
+      if(state.mode !== 'eyes' && spaceDown && isHold && c === t) filling = true;
+      const dur = isHold ? 3000 : 1400;
+      t._p = filling ? t._p + dt/dur : Math.max(0, t._p - dt/(isHold?900:500));
+      paint(t);
+      if(t._p >= 1){ t._p = 1; fire(t); break; }
+    }
+    if(state.mode === 'switch' && !spaceDown && targets.length){
+      scanAcc += dt;
+      if(scanAcc > 1300){ scanAcc = 0; scanI = (scanI + 1) % targets.length; targets.forEach(x => x._lock = false); focus(targets[scanI]); }
+    }
+    if(state.mode === 'neural'){
+      const t = hovered;
+      if(spaceDown && t && !t.classList.contains('hold') && !t._lock) conf = Math.min(1, conf + dt/1100*(0.75 + Math.random()*0.6));
+      else if(!spaceDown) conf = Math.max(0, conf - dt/600);
+    }
+  }
+  paintConf();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+window.addEventListener('keydown', e => {
+  if(e.code !== 'Space' && e.code !== 'Enter') return;
+  e.preventDefault(); if(e.repeat) return;
+  spaceDown = true;
+  const t = cur();
+  if(state.mode === 'switch' && t && !t.classList.contains('hold')) fire(t);
+  if(state.mode === 'eyes' && t && !t.classList.contains('hold')) fire(t);
+});
+window.addEventListener('keyup', e => {
+  if(e.code !== 'Space' && e.code !== 'Enter') return;
+  spaceDown = false;
+  if(state.mode === 'neural' && hovered && !hovered.classList.contains('hold') && conf >= .7){ conf = 0; fire(hovered); }
+});
+
+/* ---------- prototype controls ---------- */
+function setMode(m){
+  state.mode = m;
+  document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('cur', b.dataset.mode === m));
+  document.getElementById('help').textContent = HELP[m];
+  conf = 0; scanI = 0; scanAcc = 0;
+  if(state.screen === 'home') go('home', true); else focus(null);
+}
+document.querySelectorAll('#modes button').forEach(b => b.addEventListener('click', () => { setMode(b.dataset.mode); b.blur(); }));
+document.getElementById('restart').addEventListener('click', e => { state.spots = [...DEFAULT_SPOTS]; go('home'); e.currentTarget.blur(); });
+document.getElementById('ways').addEventListener('click', e => { go(state.screen === 'ways' ? 'home' : 'ways'); e.currentTarget.blur(); });
+
+function toast(msg){
+  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+function fit(){
+  const v = document.getElementById('viewport');
+  const k = Math.min((v.clientWidth - 24)/1280, (v.clientHeight - 24)/800, 1.3);
+  S.style.transform = `scale(${k})`;
+  const c = document.getElementById('conf'); if(c) c._t = null;
+}
+window.addEventListener('resize', fit);
+document.getElementById('help').textContent = HELP.eyes;
+fit(); go('home');
+</script>
+</body>
+</html>

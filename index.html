@@ -220,7 +220,7 @@ const CAT = {
   travel:{t:'Travel', home:'Book on Southwest', set:'Book on Southwest', go:'where'},
   homehelp:{t:'Home help', home:'Find a 5-star cleaner on Yelp', set:'Find a cleaner on Yelp', go:'cleaning'},
   pharmacy:{t:'Pharmacy', home:'Refill a prescription', set:'Refill a prescription', go:'rx'},
-  something:{t:'Something else', home:'Say it in your own words', set:'Always here', go:null}
+  something:{t:'Something else', home:'Say it in your own words', set:'Always here', go:'other'}
 };
 const FLIGHTS = [
   {time:'8:05 AM', price:'$129', d:'Nonstop · $129', tag:'Best match'},
@@ -294,6 +294,15 @@ const SCREENS = {
           {t:'Seattle', d:'Your last trip', act:'nb'},
           {t:'Spell it', d:'Open the letter board', act:'nb'}])
       + pill(40,672,220,'Back','go:home') + assume('From San Jose · this Friday · just you');
+  },
+  other(){
+    return BACKDROP + topBar('Something else · listening') + abs(40,132,'h48','What do you need?')
+      + `<div class="tbar glass" style="${px(40,218,1200,104)}"><span class="dec" id="dec"></span><i class="caret"></i><span class="tbh">Think the words</span></div>`
+      + row3(386,160,[
+          {t:'Pick up dry cleaning', d:'Matches what you typed', best:true, act:'nb'},
+          {t:'Pick up a package', d:'You asked last week', act:'nb'},
+          {t:'Spell it', d:'Open the letter board', act:'nb'}])
+      + pill(40,672,220,'Back','go:home') + assume('From home · this week');
   },
   working(){
     return BACKDROP + topBar('Agent working',{work:true})
@@ -447,11 +456,8 @@ const SCREENS = {
 
 /* screen-entry motion */
 const ENTER = {
-  where(){
-    const el = document.getElementById('dec'), word = 'San Die'; let i = 0;
-    const type = () => { if(i <= word.length){ el.textContent = word.slice(0,i++); later(type, i===1?350:170); } };
-    type();
-  },
+  other(){ typeWord('Pick up my dry cle'); },
+  where(){ typeWord('San Die'); },
   working(){
     const steps = [...S.querySelectorAll('.steps i')], tok = state.tok, D = 1150, t0 = performance.now();
     const f = now => {
@@ -464,6 +470,12 @@ const ENTER = {
     requestAnimationFrame(f);
   }
 };
+
+function typeWord(word){
+  const el = document.getElementById('dec'); let i = 0;
+  const type = () => { if(i <= word.length){ el.textContent = word.slice(0,i++); later(type, i===1?350:150); } };
+  type();
+}
 
 /* ---------- navigation ---------- */
 let timers = [];

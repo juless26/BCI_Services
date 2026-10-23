@@ -151,20 +151,15 @@ body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink
 /* 11 summary */
 .sum{position:absolute;display:flex;flex-direction:column;gap:6px;padding:28px 36px;border-radius:28px;white-space:nowrap}
 
-/* 11 order peek */
-.peek{position:absolute;z-index:4}
-.peek .sum{position:relative}
-.peek .sum::after{content:"Look here to see the items";position:absolute;right:36px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted)}
-.peek.open .sum::after{content:""}
+/* 11b grocery list */
 .plist{position:absolute;left:0;top:131px;width:1200px;padding:24px;border-radius:28px;opacity:0;transform:translateY(-8px);
   background:rgba(255,255,255,.28)!important;backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);
   border:1px solid rgba(255,255,255,.75)!important;box-shadow:0 16px 40px rgba(20,24,60,.12)!important;
   pointer-events:none;transition:opacity .22s ease,transform .22s ease}
-.peek.open .plist{opacity:1;transform:none;pointer-events:auto}
 .pgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:14px}
 .item{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px;border-radius:18px;background:rgba(255,255,255,.38);
   border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.9);opacity:0;transform:translateY(6px)}
-.peek.open .item{animation:itemIn .3s ease forwards}
+.item{animation:itemIn .3s ease forwards}
 @keyframes itemIn{to{opacity:1;transform:none}}
 .item .ic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700}
 .item b{font-size:17px;font-weight:600;line-height:1.2} .item span{font-size:15px;color:var(--muted)} .item em{font-style:normal;font-size:16px;font-weight:600}
@@ -404,15 +399,19 @@ const SCREENS = {
   },
   reorder(){
     return BACKDROP + topBar('Groceries · Amazon Fresh') + abs(40,140,'h48','Reorder your usual groceries?')
-      + `<div class="peek" id="peek" style="${px(40,238,1200)}"><div class="sum glass"><p style="font-size:26px;font-weight:600">14 items from your order on Oct 6</p><p class="sub20">About $91 · 1 item is out of stock</p></div>
-         <div class="plist glass"><div class="pgrid">${GROCERIES.map((g,i)=>{const [bg,fg]=HUES[g.h];
-           return `<div class="item${g.out?' out':''}" style="animation-delay:${i*25}ms"><span class="ic" style="background:${bg};color:${fg}">${g.t[0]}</span><b>${g.t}</b><span>${g.d}</span><em>${g.out?'Out of stock':'$'+g.p.toFixed(2)}</em></div>`;}).join('')}</div>
-         <p class="ptotal">Items $${GROCERIES.filter(g=>!g.out).reduce((a,g)=>a+g.p,0).toFixed(2)} · delivery and tax $7.35 · plus the oat milk swap on the next screen</p></div></div>`
+      + `<div class="sum glass" style="${px(40,238,1200)}"><p style="font-size:26px;font-weight:600">14 items from your order on Oct 6</p><p class="sub20">About $91 · 1 item is out of stock</p></div>`
       + row3(421,180,[
           {t:'Reorder', d:'Fix the missing item first', best:true, act:'go:swap'},
           {t:'Change the list', d:'Add or remove items', act:'nb'},
-          {t:'Read the list', d:'See all 14 items', act:'nb'}])
+          {t:'Read the list', d:'See all 14 items', act:'go:groclist'}])
       + pill(40,672,220,'Back','go:home') + assume('Delivered to home · Visa ending 4417');
+  },
+  groclist(){
+    return BACKDROP + topBar('Groceries · Amazon Fresh') + abs(40,116,'h48','Your usual groceries')
+      + `<div class="plist glass" style="left:40px;top:196px;opacity:1;transform:none"><div class="pgrid">${GROCERIES.map((g,i)=>{const [bg,fg]=HUES[g.h];
+           return `<div class="item${g.out?' out':''}" style="animation-delay:${i*25}ms"><span class="ic" style="background:${bg};color:${fg}">${g.t[0]}</span><b>${g.t}</b><span>${g.d}</span><em>${g.out?'Out of stock':'$'+g.p.toFixed(2)}</em></div>`;}).join('')}</div>
+         <p class="ptotal">Items $${GROCERIES.filter(g=>!g.out).reduce((a,g)=>a+g.p,0).toFixed(2)} · delivery and tax $7.35 · plus the oat milk swap</p></div>`
+      + pill(40,672,220,'Back','go:reorder');
   },
   swap(){
     return BACKDROP + topBar('Waiting for you · nothing ordered yet') + abs(40,140,'h48','Oat milk is out of stock')
@@ -519,12 +518,6 @@ const SCREENS = {
 
 /* screen-entry motion */
 const ENTER = {
-  reorder(){
-    const pk = document.getElementById('peek');
-    pk.addEventListener('pointerenter', () => pk.classList.add('open'));
-    pk.addEventListener('pointerleave', () => pk.classList.remove('open'));
-    pk.addEventListener('click', () => pk.classList.toggle('open'));
-  },
   other(){ typeWord('Pick up my dry cle'); },
   where(){ typeWord('San Die'); },
   working(){

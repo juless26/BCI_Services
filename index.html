@@ -41,9 +41,8 @@ body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink
 .screen{position:absolute;inset:0}
 .screen.enter{animation:enter .34s cubic-bezier(.2,.8,.2,1)}
 @keyframes enter{from{opacity:0;transform:translateY(12px)}}
-.backdrop{position:absolute;left:820px;top:-220px;width:620px;height:620px;border-radius:50%;
-  background:radial-gradient(circle,rgba(200,204,255,.85) 0%,rgba(205,208,255,.45) 45%,rgba(205,208,255,0) 72%);
-  filter:blur(24px);pointer-events:none}
+.backdrop{position:absolute;left:0;right:0;bottom:0;height:460px;pointer-events:none;
+  background:linear-gradient(to top,rgba(196,200,255,.8),rgba(196,200,255,0))}
 .abs{position:absolute;white-space:nowrap}
 .h48{font-size:48px;font-weight:700;letter-spacing:-.48px}
 .h44{font-size:44px;font-weight:700;letter-spacing:-.44px}
@@ -299,10 +298,22 @@ const SCREENS = {
     return BACKDROP + topBar('Something else · listening') + abs(40,132,'h48','What do you need?')
       + `<div class="tbar glass" style="${px(40,218,1200,104)}"><span class="dec" id="dec"></span><i class="caret"></i><span class="tbh">Think the words</span></div>`
       + row3(386,160,[
-          {t:'Pick up dry cleaning', d:'Matches what you typed', best:true, act:'nb'},
+          {t:'Pick up dry cleaning', d:'Matches what you typed', best:true, act:'go:errandPay'},
           {t:'Pick up a package', d:'You asked last week', act:'nb'},
           {t:'Spell it', d:'Open the letter board', act:'nb'}])
       + pill(40,672,220,'Back','go:home') + assume('From home · this week');
+  },
+  errandPay(){
+    return BACKDROP + topBar('Waiting for you · nothing booked yet') + ctr(120,'h48','Pay $12 for a dry cleaning pickup?')
+      + ctr(186,'sub22','A driver picks it up today, 4 to 6 PM · Visa ending 4417')
+      + hold(500,252,280,'Pay','go:errandDone')
+      + ctr(556,'sub20','Keep looking at the circle for 3 seconds. Look away to cancel.')
+      + pill(510,672,260,'Not yet','go:other');
+  },
+  errandDone(){
+    return BACKDROP + topBar('Done',{stop:false}) + doneMark() + ctr(408,'h44','Pickup booked')
+      + ctr(470,'sub22','Your dry cleaning comes home today between 4 and 6 PM. I sent the details to you and to Sam.')
+      + pill(510,672,260,'Back to home','go:home');
   },
   working(){
     return BACKDROP + topBar('Agent working',{work:true})

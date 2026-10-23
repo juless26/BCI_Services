@@ -151,6 +151,27 @@ body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink
 /* 11 summary */
 .sum{position:absolute;display:flex;flex-direction:column;gap:6px;padding:28px 36px;border-radius:28px;white-space:nowrap}
 
+/* 11 order peek */
+.peek{position:absolute;z-index:4}
+.peek .sum{position:relative}
+.peek .sum::after{content:"Look here to see the items";position:absolute;right:36px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted)}
+.peek.open .sum::after{content:""}
+.plist{position:absolute;left:0;top:131px;width:1200px;padding:24px;border-radius:28px;opacity:0;transform:translateY(-8px);
+  background:rgba(255,255,255,.28)!important;backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.75)!important;box-shadow:0 16px 40px rgba(20,24,60,.12)!important;
+  pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+.peek.open .plist{opacity:1;transform:none;pointer-events:auto}
+.pgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:14px}
+.item{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px;border-radius:18px;background:rgba(255,255,255,.38);
+  border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.9);opacity:0;transform:translateY(6px)}
+.peek.open .item{animation:itemIn .3s ease forwards}
+@keyframes itemIn{to{opacity:1;transform:none}}
+.item .ic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700}
+.item b{font-size:17px;font-weight:600;line-height:1.2} .item span{font-size:15px;color:var(--muted)} .item em{font-style:normal;font-size:16px;font-weight:600}
+.item.out{background:rgba(255,255,255,.18);border:1px dashed #a9aecb}
+.item.out .ic{opacity:.45} .item.out em{color:var(--stop);font-size:15px}
+.ptotal{margin-top:16px;font-size:18px;color:var(--muted)}
+
 /* 10 settings */
 .spot{position:absolute;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;padding:20px 24px;border-radius:24px;white-space:nowrap}
 .spot b{font-size:24px;font-weight:600} .spot span{font-size:16px;color:var(--muted)}
@@ -195,7 +216,7 @@ body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink
 <div id="chrome">
   <span class="label">Input</span>
   <div class="seg" id="modes">
-    <button data-mode="eyes" class="cur">Eyes</button>
+    <button data-mode="eyes" class="cur">Gaze control</button>
     <button data-mode="neural">Neural</button>
     <button data-mode="switch">Switch</button>
   </div>
@@ -208,7 +229,7 @@ body{background:#dde0ea;font-family:Figtree,system-ui,sans-serif;color:var(--ink
 
 <script>
 const S = document.getElementById('stage');
-const MODE = {eyes:'Eyes', neural:'Neural', switch:'Switch'};
+const MODE = {eyes:'Gaze control', neural:'Neural', switch:'Switch'};
 const HELP = {
   eyes:'Rest the pointer on a target until its ring closes. To pay or send, rest on the circle for 3 seconds. Click or tap also works.',
   neural:'Point at a target, then hold Space until the bar passes the line. To pay or send, hold Space on the circle for 3 seconds. Click or tap also works.',
@@ -244,6 +265,16 @@ const SOURCES = {
   pharmacy:{t:'Pharmacy', opts:[{t:'Your usual pharmacy', d:'Insurance on file'},{t:'Amazon Pharmacy', d:'Mail delivery'}]}
 };
 const DEFAULT_SRC = {groceries:['Amazon Fresh'], travel:['Southwest'], homehelp:['Yelp'], pharmacy:['Your usual pharmacy']};
+const GROCERIES = [
+  {t:'Oat milk', d:'64 oz', p:4.49, out:true, h:'blue'}, {t:'Bananas', d:'1 bunch', p:1.99, h:'orange'},
+  {t:'Eggs', d:'12 large', p:4.99, h:'gray'}, {t:'Sourdough bread', d:'1 loaf', p:5.49, h:'orange'},
+  {t:'Greek yogurt', d:'32 oz', p:6.29, h:'blue'}, {t:'Baby spinach', d:'10 oz', p:4.99, h:'purple'},
+  {t:'Chicken thighs', d:'2 lb', p:9.98, h:'pink'}, {t:'Rice', d:'2 lb bag', p:3.79, h:'gray'},
+  {t:'Apples', d:'3 lb bag', p:5.99, h:'pink'}, {t:'Coffee', d:'12 oz', p:10.99, h:'purple'},
+  {t:'Cheddar', d:'8 oz', p:4.79, h:'orange'}, {t:'Tomatoes', d:'1 lb', p:3.49, h:'pink'},
+  {t:'Peanut butter', d:'16 oz', p:4.29, h:'orange'}, {t:'Paper towels', d:'6 rolls', p:12.99, h:'blue'}
+];
+const HUES = {blue:['#e3ebff','#2f5bd3'], purple:['#ece6ff','#5b3fe0'], pink:['#fde4ee','#c2335b'], orange:['#ffe8df','#d9481f'], gray:['#e8eaf2','#5a5f7d']};
 const DEFAULT_SPOTS = ['groceries','travel','homehelp','something'];
 const state = {screen:'home', mode:'eyes', spots:[...DEFAULT_SPOTS], orig:null, draft:null, flight:0, slot:0, rx:0, rxTime:0, src:JSON.parse(JSON.stringify(DEFAULT_SRC)), srcSnap:null, srcTask:'homehelp', srcBack:'settings', tok:0};
 
@@ -373,7 +404,10 @@ const SCREENS = {
   },
   reorder(){
     return BACKDROP + topBar('Groceries · Amazon Fresh') + abs(40,140,'h48','Reorder your usual groceries?')
-      + `<div class="sum glass" style="${px(40,238,1200)}"><p style="font-size:26px;font-weight:600">14 items from your order on Oct 6</p><p class="sub20">About $91 · 1 item is out of stock</p></div>`
+      + `<div class="peek" id="peek" style="${px(40,238,1200)}"><div class="sum glass"><p style="font-size:26px;font-weight:600">14 items from your order on Oct 6</p><p class="sub20">About $91 · 1 item is out of stock</p></div>
+         <div class="plist glass"><div class="pgrid">${GROCERIES.map((g,i)=>{const [bg,fg]=HUES[g.h];
+           return `<div class="item${g.out?' out':''}" style="animation-delay:${i*25}ms"><span class="ic" style="background:${bg};color:${fg}">${g.t[0]}</span><b>${g.t}</b><span>${g.d}</span><em>${g.out?'Out of stock':'$'+g.p.toFixed(2)}</em></div>`;}).join('')}</div>
+         <p class="ptotal">Items $${GROCERIES.filter(g=>!g.out).reduce((a,g)=>a+g.p,0).toFixed(2)} · delivery and tax $7.35 · plus the oat milk swap on the next screen</p></div></div>`
       + row3(421,180,[
           {t:'Reorder', d:'Fix the missing item first', best:true, act:'go:swap'},
           {t:'Change the list', d:'Add or remove items', act:'nb'},
@@ -485,6 +519,12 @@ const SCREENS = {
 
 /* screen-entry motion */
 const ENTER = {
+  reorder(){
+    const pk = document.getElementById('peek');
+    pk.addEventListener('pointerenter', () => pk.classList.add('open'));
+    pk.addEventListener('pointerleave', () => pk.classList.remove('open'));
+    pk.addEventListener('click', () => pk.classList.toggle('open'));
+  },
   other(){ typeWord('Pick up my dry cle'); },
   where(){ typeWord('San Die'); },
   working(){
